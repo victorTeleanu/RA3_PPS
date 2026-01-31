@@ -1,3 +1,11 @@
+![Version](https://img.shields.io/badge/version-v2026.1.31-blue)
+![Docker](https://img.shields.io/badge/docker-stable-blue)
+![Debian](https://img.shields.io/badge/debian-bookworm--slim-bf1131)
+![Apache](https://img.shields.io/badge/apache-2.4.62-red)
+![Nginx](https://img.shields.io/badge/nginx-1.27-green)
+![PHP](https://img.shields.io/badge/php-8.2-777bb4)
+![License](https://img.shields.io/badge/license-MIT-yellow)
+
 # RA3_1: Server Hardening
 
 Este repositorio contiene las actividades para el ejercicio **RA3_1 Server Hardening**. Se presenta una evolución desde un servidor básico hasta una infraestructura blindada bajo el principio de defensa en profundidad.
