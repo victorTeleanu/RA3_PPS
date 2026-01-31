@@ -1,118 +1,155 @@
-# 🛡️ Práctica 7: Apache Hardening Best Practices
+# Práctica 7: Apache Hardening & Best Practices
 
-En esta fase hemos contruido una arquitectura de **Defensa en Profundidad**. Partiendo de la base segura de las prácticas anteriores, hemos blindado el núcleo de Apache mediante un proceso de **Hardening** avanzado y la integración de **ModSecurity** como WAF (Web Application Firewall). Esta configuración no solo cifra la información, sino que inspecciona activamente cada petición para neutralizar vectores de ataque complejos antes de que alcancen la aplicación.
+Esta práctica representa la culminación del proceso de endurecimiento (*hardening*), donde se implementa una arquitectura modular de seguridad para blindar el servidor frente a técnicas de reconocimiento y abusos de protocolo.
 
-## 📂 Estructura del directorio
+## 1. Estructura del directorio
+La configuración se ha modularizado para separar las políticas de seguridad de la lógica del servidor web.
 
 ```text
-Practica7_Hardening/
-├── Dockerfile
-├── conf/
-│   ├── hardening.conf
-│   ├── security-headers.conf
-│   └── modsecurity.conf
+Practica7_ApacheHardening/
+├── Dockerfile                # Definición de la imagen y provisión de módulos
+├── conf/                     # Configuraciones modulares
+│   ├── hardening.conf        # Ocultación de información y timeouts
+│   ├── modsecurity.conf      # Configuración del WAF y firma personalizada
+│   ├── security-headers.conf # Inyección de cabeceras de protección
+│   └── victorteleanu.conf    # VirtualHost principal (SSL y Redirección)
 └── www/
-    └── index.html
+│   └── index.html            # Interfaz de estado del sistema protegido
+└── README.md
 ```
-## ⚙️ Configuración realizada
 
-### A. Hardening y ocultación (hardening.conf)
-Se ha configurado el servidor para minimizar la superficie de reconocimiento por parte de atacantes:
-* **ServerTokens Prod**: Limita la cabecera `Server` a lo mínimo posible (solo "Apache").
-* **ServerSignature Off**: Elimina el pie de página con información del sistema en páginas de error.
-* **TraceEnable Off**: Desactiva el método TRACE para prevenir ataques de Cross-Site Tracing (XST).
-* **FileETag None**: Evita que se filtren números de inodo del sistema de archivos en las cabeceras.
+## 2. Archivos de configuración
 
-### B. Inyección de cabeceras (security-headers.conf)
-Blindaje del lado del cliente mediante políticas de respuesta activa:
-* **X-Frame-Options**: Evita ataques de Clickjacking impidiendo que el sitio se cargue en iframes externos.
-* **X-XSS-Protection**: Activa el filtro de scripts maliciosos integrado en el navegador.
-* **X-Content-Type-Options**: Previene el MIME-sniffing configurándolo como `nosniff`.
+### **A. Hardening (`hardening.conf`)**
+Se configura la ocultación de la versión de Apache y la mitigación de ataques tipo DoS lento.
+* **ServerTokens Full**: Permite que ModSecurity gestione el banner del servidor.
+* **ServerSignature Off**: Elimina la firma del servidor de las páginas de error.
+* **FileETag None**: Desactiva la generación de ETags para evitar filtración de inodos.
+* **TraceEnable Off**: Desactiva el método TRACE para evitar ataques XST.
+* **Timeout 60**: Reduce el tiempo de espera para mitigar ataques como Slowloris.
 
-### C. Web Application Firewall - WAF (modsecurity.conf)
-Implementación de **ModSecurity v2** como escudo activo frente a ataques de capa de aplicación:
-* **SecRuleEngine On**: El motor está en modo de bloqueo real, no solo detección.
-* **SecServerSignature**: Se ha personalizado la identidad del servidor a "**Servidor Privado**" para despistar escaneos automáticos.
-* **Auditoría**: Registro detallado de cada intento de ataque interceptado en `/var/log/apache2/modsec_audit.log`.
+### **B. WAF & Identidad (`modsecurity.conf`)**
+* **SecRuleEngine On**: Activa el motor de reglas de ModSecurity.
+* **SecServerSignature**: Cambia la identidad pública del servidor a `"Servidor-Victor-Privado"`.
+* **SecAuditLog**: Configura el registro de auditoría en `/var/log/apache2/modsec_audit.log`.
 
-## 🛠️ Dockerfile
+### **C. Cabeceras (`security-headers.conf`)**
+Implementación de cabeceras para mitigar ataques en el lado del cliente.
+* **X-Frame-Options SAMEORIGIN**: Protege contra ataques de Clickjacking.
+* **X-XSS-Protection "1; mode=block"**: Activa el filtro XSS del navegador.
+* **X-Content-Type-Options nosniff**: Previene el sniffing de tipos MIME.
+* **Set-Cookie HttpOnly;Secure**: Asegura que las cookies solo se transmitan por HTTPS y no sean accesibles vía script.
 
-```dockerfile
+### **D. VirtualHost (`victorteleanu.conf`)**
+* **Redirección**: Fuerza todo el tráfico HTTP (puerto 80) hacia el puerto HTTPS seguro (9449).
+* **LimitExcept**: Restricción estricta de métodos HTTP, permitiendo únicamente `GET`, `POST` y `HEAD`.
+
+## 3. Dockerfile
+El Dockerfile automatiza la instalación de `libapache2-mod-security2`, la generación de certificados RSA de 2048 bits y la aplicación de permisos restrictivos (`chmod 750`) sobre las rutas críticas.
+
+```Dockerfile
 FROM php:8.2-apache
 
-# Instalación de ModSecurity y dependencias necesarias
+# 1. Instalación de ModSecurity y OpenSSL
 RUN apt-get update && apt-get install -y \
     libapache2-mod-security2 \
+    openssl \
     && apt-get clean
 
-# Aplicar configuraciones de Hardening, Cabeceras y WAF
+# 2. Generar certificados SSL
+RUN mkdir -p /etc/apache2/ssl && \
+    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -keyout /etc/apache2/ssl/apache.key \
+    -out /etc/apache2/ssl/apache.crt \
+    -subj "/C=ES/ST=Castellon/L=Castellon/O=Caminas/OU=Hardening/CN=www.victorteleanu.com"
+
+# 3. Copiar configuraciones modulares
 COPY conf/hardening.conf /etc/apache2/conf-available/hardening.conf
 COPY conf/security-headers.conf /etc/apache2/conf-available/security-headers.conf
 COPY conf/modsecurity.conf /etc/modsecurity/modsecurity.conf
 
-# Habilitar módulos de Apache y las nuevas configuraciones
-RUN a2enmod headers rewrite unique_id security2 && \
+# 4. Habilitar módulos, configuraciones y el nuevo VirtualHost
+RUN a2enmod ssl headers rewrite unique_id security2 && \
     a2enconf hardening security-headers
 
-# Preparación del sistema de Auditoría
+COPY conf/victorteleanu.conf /etc/apache2/sites-available/victorteleanu.conf
+RUN a2dissite 000-default.conf && a2ensite victorteleanu.conf
+
+# 5. Preparación de logs y permisos
 RUN touch /var/log/apache2/modsec_audit.log && \
-    chown www-data:www-data /var/log/apache2/modsec_audit.log
+    chown www-data:www-data /var/log/apache2/modsec_audit.log && \
+    chmod -R 750 /etc/apache2 /usr/sbin/apache2
 
-# Hardening de sistema
-RUN chmod -R 750 /etc/apache2 /usr/sbin/apache2
-
-# Despliegue del contenido web y permisos
+# 6. Despliegue de contenido
 COPY www/ /var/www/html/
 RUN chown -R www-data:www-data /var/www/html
 
-EXPOSE 80
+EXPOSE 80 443
 ```
-## 🔍 Validación
 
-Para verificar el blindaje del servidor, se han realizado pruebas de inyección de código y auditoría de cabeceras desde la terminal de la máquina anfitriona:
+## 4. Despliegue y uso
 
-![Validación práctica 7](../assets/verificacion_pr7.png)
-
-### 1. Prueba de bloqueo del WAF (Ataque Path Traversal)
-Simulamos un intento de lectura de archivos sensibles del sistema operativo mediante una inyección en la URL:
-
+### A. Construcción de la imagen
 ```bash
-curl -I "http://localhost:8085/?file=../../etc/passwd"
-```
-**Resultado Obtenido:**
-
-```plaintext
-HTTP/1.1 403 Forbidden
-Server: Servidor Privado
-X-Frame-Options: SAMEORIGIN
-Content-Type: text/html; charset=iso-8859-1
+docker build -t victorteleanu/pps:pr7 .
 ```
 
-### 2. Prueba de hardening y cabeceras
-Verificamos que la identidad del servidor esté totalmente oculta y que las cabeceras de seguridad preventivas estén activas en una petición legítima:
-
+### B. Subir la imagen a DockerHub
 ```bash
-curl -I http://localhost:8085
+docker push victorteleanu/pps:pr7
 ```
 
-**Resultado Obtenido:**
-
-```plaintext
-HTTP/1.1 200 OK
-Date: Sun, 18 Jan 2026 09:59:20 GMT
-Server: Servidor Privado
-X-Frame-Options: SAMEORIGIN
-X-XSS-Protection: 1; mode=block
-X-Content-Type-Options: nosniff
-Content-Type: text/html
+### C. Despliegue del contenedor
+```bash
+docker run -d --name practica7_test -p 9007:80 -p 9449:443 victorteleanu/pps:pr7
 ```
 
-## 🌐 Docker Hub
+## 5. Verificación
 
-Imagen disponible para su despliegue de forma rápida:
+A continuación se detallan los comandos utilizados para realizar la verificación:
 
-| Campo | Valor |
-| :--- | :--- |
-| **Repositorio** | `victorteleanu/pps` |
-| **Etiqueta (Tag)** | `pr7` |
-| **Comando Pull** | `docker pull victorteleanu/pps:pr7` |
+### **A. Verificación de identidad y cabeceras**
+
+Verifica que el servidor oculte su versión real y muestre las cabeceras de seguridad configuradas.
+```bash
+curl -I -k -s curl -I -k -s https://www.victorteleanu.com:9449
+```
+
+**Resultado esperado**: La cabecera `Server` debe mostrar `Servidor-Victor-Privado` y aparecerán las cabeceras de seguridad.
+
+### **B. Verificación de bloqueo de métodos (DELETE)**
+
+Comprueba que el servidor deniegue métodos no permitidos (403 Forbidden).
+```bash
+curl -I -k -s -X DELETE https://www.victorteleanu.com:9449
+```
+
+**Resultado esperado**: Respuesta `HTTP/1.1 403 Forbidden`.
+
+### **C. Verificación de desactivación de TRACE**
+
+Asegura que el método TRACE esté inhabilitado (405 Method Not Allowed).
+```bash
+curl -I -k -s -X TRACE https://www.victorteleanu.com:9449
+```
+
+**Resultado esperado**: Respuesta `HTTP/1.1 405 Method Not Allowed`.
+
+### **D. Verificación de redirección HTTP a HTTPS**
+
+Valida que el acceso por el puerto inseguro 9007 redirija al puerto seguro 9449.
+```bash
+curl -I -s http://www.victorteleanu.com:9007
+```
+
+**Resultado esperado**: Respuesta `HTTP/1.1 301 Moved Permanently` con la cabecera `Location` hacia el puerto 9449.
+
+**Evidencia:**
+
+![Verificación práctica 7](../assets/verificacion_pr7.png)
+
+## 6. DockerHub
+
+La imagen final se encuentra en el siguiente enlace:
+
+**[victorteleanu/pps:pr7](https://hub.docker.com/repository/docker/victorteleanu/pps/tags/pr7)**

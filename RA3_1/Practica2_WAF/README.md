@@ -1,39 +1,35 @@
-# 🛡️ Práctica 2: Web Application Firewall
+# Práctica 2: Web Application Firewall (WAF)
 
-En esta segunda fase, mejoramos el servidor endurecido de la Práctica 1 añadiendo una capa de seguridad activa: un **WAF (Web Application Firewall)** basado en **ModSecurity**.
+Esta práctica introduce una capa de seguridad activa mediante el despliegue de **ModSecurity v2**. El objetivo es configurar un cortafuegos de aplicaciones web capaz de inspeccionar el tráfico entrante y mitigar ataques comunes.
 
-## 📂 Estructura del Directorio
+## 1. Estructura del directorio
+El proyecto hereda la base de seguridad de la Práctica 1 e incluye la configuración personalizada del WAF.
 
 ```text
 Practica2_WAF/
-├── Dockerfile
-└── conf/
-    └── modsecurity_custom.conf
+├── conf/                       # Configuraciones de seguridad
+│   └── modsecurity_custom.conf # Parámetros del motor ModSecurity
+├── Dockerfile                  # Construcción basada en la imagen pps:pr1
+└── README.md
 ```
 
-## ⚙️ Configuración realizada
-Para llegar al estado final del servidor, se realizaron las siguientes acciones técnicas:
+## 2. Archivos de configuración
 
-Se ha instalado el motor de ModSecurity y el conjunto de reglas básicas (CRS) sobre la imagen base de la práctica anterior.
-* **Comando**: `apt-get install libapache2-mod-security2`.
-* **Habilitar módulos necesarios**: `a2enmod security2`.
+### **A. ModSecurity personalizado (`modsecurity_custom.conf`)**
+Define el comportamiento del motor de reglas y los límites de procesamiento de datos:
+* **SecRuleEngine On**: Activa el motor de reglas en modo preventivo (bloqueo activo).
+* **Límites de Cuerpo (Request Body)**: Se establecen límites estrictos para prevenir ataques de denegación de servicio por agotamiento de memoria:
+    * `SecRequestBodyLimit`: 12.5 MB máximo para el cuerpo de la petición.
+    * `SecRequestBodyInMemoryLimit`: 128 KB para procesamiento en memoria RAM.
+* **SecResponseBodyLimit**: 512 KB máximo para la respuesta del servidor.
 
-### B. Activación del motor de bloqueo
-Por defecto, ModSecurity se instala en modo de solo detección (*DetectionOnly*). Se ha implementado el archivo `conf/modsecurity_custom.conf` para cambiar el comportamiento a bloqueo activo:
+### **B. Base de reglas recomendada**
+Se utiliza como base el archivo `modsecurity.conf-recommended` proporcionado por el paquete oficial, el cual se adapta para activar la protección activa.
 
-* **Directiva clave**: `SecRuleEngine On`
+## 3. Dockerfile
+La imagen se construye partiendo de `victorteleanu/pps:pr1`, garantizando que todas las protecciones previas se mantengan.
 
-### C. Herencia de seguridad
-Al utilizar la instrucción `FROM victorteleanu/pps:pr1`, el contenedor mantiene automáticamente todas las capas de protección implementadas anteriormente:
-
-* **Cifrado SSL/TLS** (Puerto 443).
-* **Cabeceras HSTS y CSP**.
-* **Listado de directorios deshabilitado**.
-
-## 🛠️ Dockerfile
-El archivo de construcción automatiza la instalación del WAF sobre la base endurecida de la etapa anterior.
-
-```dockerfile
+```Dockerfile
 FROM victorteleanu/pps:pr1
 
 # Instalar el módulo ModSecurity para Apache
@@ -52,25 +48,41 @@ COPY conf/modsecurity_custom.conf /etc/apache2/conf-available/modsecurity_custom
 RUN a2enmod security2 && a2enconf modsecurity_custom
 ```
 
-## 🔍 Validación
-Para verificar que el WAF protege el servidor, se simula un ataque de **Directory Traversal** intentando acceder a archivos sensibles del sistema operativo a través de la URL:
+## 4. Despliegue y uso
 
+### A. Construcción de la imagen
 ```bash
-# Intento de lectura de /etc/passwd a través de la URL
-curl -k -I "https://localhost/index.html?exec=/etc/passwd"
+docker build -t victorteleanu/pps:pr2 .
 ```
 
-### Resultado de seguridad
+### B. Subir la imagen a DockerHub
+```bash
+docker push victorteleanu/pps:pr2
+```
 
-El servidor debe denegar el acceso con un código **403 Forbidden** debido a la peligrosidad de la petición detectada.
+### C. Despliegue del contenedor
+```bash
+docker run -d --name practica2_test -p 9002:80 -p 9444:443 victorteleanu/pps:pr2
+```
 
-![Validación práctica 2](../assets/verificacion_pr2.png)
+## 5. Verificación
 
-## 🌐 Docker Hub
-Imagen disponible para su despliegue de forma rápida:
+Se realiza una prueba de inyección de parámetros sospechosos (Path Traversal) para validar que el WAF intercepta peticiones maliciosas.
 
-| Campo | Valor |
-| :--- | :--- |
-| **Repositorio** | `victorteleanu/pps` |
-| **Etiqueta (Tag)** | `pr2` |
-| **Comando Pull** | `docker pull victorteleanu/pps:pr2` |
+### **Validación de bloqueo por ModSecurity**
+Se intenta acceder a un archivo sensible del sistema (`/etc/passwd`) mediante un parámetro en la URL.
+```bash
+curl -I -k -s "https://localhost:9444/index.html?exec=/etc/passwd"
+```
+
+**Resultado esperado**: El servidor debe responder con un código `HTTP/1.1 403 Forbidden`, indicando que ModSecurity ha interceptado y bloqueado la petición por violar las políticas de seguridad.
+
+**Evidencia:**
+
+![Verificación práctica 2](../assets/verificacion_pr2.png)
+
+## 6. DockerHub
+
+La imagen final se encuentra en el siguiente enlace:
+
+**[victorteleanu/pps:pr2](https://hub.docker.com/repository/docker/victorteleanu/pps/tags/pr2)**

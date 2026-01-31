@@ -1,37 +1,36 @@
-# 🛡️ Práctica 3: OWASP
+# Práctica 3: OWASP Core Rule Set (CRS)
 
-Esta práctica representa el endurecimiento del servidor. Hemos integrado el **OWASP Core Rule Set (CRS)**, un conjunto de reglas de detección de ataques de código abierto que protege al servidor contra las vulnerabilidades más críticas identificadas por la comunidad (OWASP Top 10).
+En esta práctica se eleva el nivel de protección del WAF mediante la implementación del **OWASP ModSecurity Core Rule Set (CRS)**. Este conjunto de reglas genéricas de detección de ataques se utiliza para proteger aplicaciones web de una amplia gama de ataques, incluidos los diez riesgos principales de OWASP (SQLi, XSS, LFI, etc.).
 
-## 📂 Estructura del directorio
+## 1. Estructura del directorio
+El proyecto integra el motor de ModSecurity configurado anteriormente con las reglas oficiales de SpiderLabs.
 
 ```text
 Practica3_OWASP/
-├── Dockerfile
-└── conf/
-    ├── security2.conf
-    └── owasp-testing.conf
+├── conf/                       # Configuraciones de seguridad
+│   ├── owasp-testing.conf      # Regla personalizada de prueba
+│   └── security2.conf          # Orquestador de carga de reglas CRS
+├── Dockerfile                  # Construcción basada en pps:pr2 con clonación de reglas
+└── README.md
 ```
 
-## ⚙️ Configuración realizada
-Para llegar al estado final del servidor, se realizaron las siguientes acciones técnicas:
+## 2. Archivos de configuración
 
-### A. Implementación del Core Rule Set (CRS)
-Se ha automatizado el despliegue del repositorio oficial de **SpiderLabs** para garantizar que el servidor cuente con las firmas de ataque más actualizadas:
+### **A. Regla de Prueba Personalizada (`owasp-testing.conf`)**
+Se ha implementado una regla específica para verificar el funcionamiento del motor antes de la carga masiva:
+* **SecRule ARGS:testparam "@contains test"**: Intercepta cualquier petición que contenga la cadena "test" en el parámetro `testparam`.
+* **msg:'Cazado por Ciberseguridad'**: Mensaje personalizado que se registra en el log de auditoría al producirse el bloqueo (403).
 
-* **Clonación**: `git clone https://github.com/SpiderLabs/owasp-modsecurity-crs.git`.
-* **Organización**: Se han migrado las reglas y los archivos de configuración (`crs-setup.conf`) al directorio persistente `/etc/modsecurity/`.
+### **B. Orquestador de Reglas (`security2.conf`)**
+Este archivo actúa como el punto de entrada para Apache:
+* **SecDataDir**: Define el directorio de persistencia para datos del WAF.
+* **IncludeOptional /etc/modsecurity/*.conf**: Carga la configuración base.
+* **Include /etc/modsecurity/rules/*.conf**: Carga de forma recursiva todas las reglas oficiales de OWASP (SQLi, XSS, inyección de comandos, etc.).
 
-### B. Sistema de puntuación de anomalías (Anomaly Scoring)
-A diferencia de las reglas estáticas, el CRS utiliza un modelo de puntuación: cada elemento sospechoso en una petición suma puntos. Si el total supera el umbral establecido (por defecto 5), ModSecurity bloquea la petición.
+## 3. Dockerfile
+La imagen se construye sobre `pps:pr2`, integrando `git` para descargar las reglas actualizadas y realizando una limpieza posterior para optimizar el tamaño de la imagen final.
 
-### C. Regla de validación personalizada
-Se ha configurado una regla de prioridad para verificar el funcionamiento del motor en tiempo real:
-
-* **Directiva**: `SecRule ARGS:testparam "@contains test" "id:1234,deny,status:403,msg:'Cazado por Ciberseguridad'"`
-
-## 🛠️ Dockerfile
-
-```dockerfile
+```Dockerfile
 FROM victorteleanu/pps:pr2
 
 # Instalamos git temporalmente para bajar las reglas
@@ -57,23 +56,54 @@ RUN a2enconf owasp-testing
 EXPOSE 80 443
 ```
 
-## 🔍 Validación
+## 4. Despliegue y uso
 
-Se han ejecutado pruebas de penetración para confirmar que tanto las reglas personalizadas como el conjunto de reglas de **OWASP** bloquean el tráfico malicioso de forma efectiva:
+### A. Construcción de la imagen
+```bash
+docker build -t victorteleanu/pps:pr3 .
+```
 
-| Tipo de ataque | Comando de prueba | Respuesta | Origen del bloqueo |
-| :--- | :--- | :--- | :--- |
-| **Parámetro Prohibido** | `?testparam=test` | 403 Forbidden | Regla Local (ID 1234) |
-| **Command Injection** | `?exec=/bin/bash` | 403 Forbidden | OWASP (Score: 5) |
-| **Path Traversal** | `?exec=/../../` | 403 Forbidden | OWASP (Score: 30) |
+### B. Subir la imagen a DockerHub
+```bash
+docker push victorteleanu/pps:pr3
+```
 
-![Validación práctica 3](../assets/verificacion_pr3.png)
+### C. Despliegue del contenedor
+```bash
+docker run -d --name practica3_test -p 9003:80 -p 9445:443 victorteleanu/pps:pr3
+```
 
-## 🌐 Docker Hub
-Imagen disponible para su despliegue de forma rápida:
+## 5. Verificación
 
-| Campo | Valor |
-| :--- | :--- |
-| **Repositorio** | `victorteleanu/pps` |
-| **Etiqueta (Tag)** | `pr3` |
-| **Comando Pull** | `docker pull victorteleanu/pps:pr3` |
+Se realizan múltiples pruebas para validar tanto la regla personalizada como la protección global de OWASP contra ataques de sistema.
+
+### **A. Verififcación de regla personalizada**
+```bash
+curl -I -k -s "https://localhost:9445/?testparam=test"
+```
+
+**Resultado esperado**: `HTTP/1.1 403 Forbidden`.
+
+### **B. Verificación de inyección de comandos**
+```bash
+curl -I -k -s "https://localhost:9445/?exec=/bin/bash"
+```
+
+**Resultado esperado**: `HTTP/1.1 403 Forbidden`.
+
+### **C. Verificación de Path Traversal profundo**
+```bash
+curl -I -k -s "https://localhost:9445/?exec=/../../"
+```
+
+**Resultado esperado**: `HTTP/1.1 403 Forbidden`.
+
+**Evidencia:**
+
+![Verificación práctica 3](../assets/verificacion_pr3.png)
+
+## 6. DockerHub
+
+La imagen final se encuentra en el siguiente enlace:
+
+**[victorteleanu/pps:pr3](https://hub.docker.com/repository/docker/victorteleanu/pps/tags/pr3)**

@@ -25,4 +25,4 @@ COPY www/ /var/www/html/
 RUN chown -R www-data:www-data /var/www/html
 
 EXPOSE 80 443
-CMD ["bash"]
+CMD service php8.4-fpm start && nginx -g "daemon off;"

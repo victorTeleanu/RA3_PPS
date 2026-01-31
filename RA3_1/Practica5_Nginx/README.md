@@ -1,48 +1,37 @@
-# 🛡️ Práctica 5: Nginx
+# Práctica 5: Optimización y Hardening con Nginx + PHP 8.4
 
-Este apartado contiene la configuración y el despliegue de un servidor web **Nginx** optimizado bajo estándares de seguridad defensiva. El entorno incluye soporte para **PHP 8.4**, cifrado **SSL/TLS**, y políticas de hardening para mitigar ataques comunes en aplicaciones web.
+En esta práctica se realiza una migración tecnológica de Apache a **Nginx** para implementar una arquitectura más eficiente basada en **PHP-FPM**. Se introducen capas de autenticación a nivel de servidor y se resuelve la comunicación entre servicios mediante sockets TCP.
 
-## 📂 Estructura del directorio
+## 1. Estructura del directorio
+El proyecto organiza las configuraciones del servidor web y los scripts de backend, junto con el despliegue de contenido estático y dinámico.
 
 ```text
 Practica5_Nginx/
-├── Dockerfile
-├── conf/
-│   └── default.conf
-└── www/
-    ├── index.php
-    └── privado/
-        └── index.html
+├── conf/                   # Configuraciones de servidor
+│   └── default.conf        # Servidor Nginx (SSL, Hardening y FastCGI)
+├── www/                    # Contenido de la aplicación
+│   ├── index.html          # Zona privada estática
+│   └── index.php           # Verificación de entorno PHP
+├── Dockerfile              # Construcción basada en Nginx con PHP-FPM 8.4
+└── README.md
 ```
-## ⚙️ Configuración realizada
 
-Se han aplicado las siguientes capas de seguridad para robustecer el servidor:
+## 2. Archivos de configuración
 
-### A. Minimización de información
-* **`server_tokens off;`**: Desactiva la exposición de la versión de Nginx en las cabeceras de respuesta y páginas de error, dificultando el reconocimiento del sistema por parte de atacantes.
+### **A. Servidor Nginx (`default.conf`)**
+Se configura el servidor para actuar como terminación SSL y proxy inverso para PHP:
+* **server_tokens off**: Oculta la versión de Nginx en las cabeceras para evitar el reconocimiento del sistema.
+* **Autenticación Básica**: Implementa `auth_basic` vinculado a un archivo `.htpasswd` para restringir el acceso a todo el sitio.
+* **PHP-FPM vía TCP**: Se configura `fastcgi_pass 127.0.0.1:9000` para garantizar una comunicación estable y evitar errores de permisos comunes en sockets Unix (502 Bad Gateway).
+* **Cabeceras HSTS y CSP**: Se replican las políticas de seguridad en cada bloque `location` para asegurar su envío persistente al navegador.
 
-### B. Cabeceras de seguridad (Security headers)
+### **B. Backend PHP (`index.php`)**
+Se incluye un script para verificar la correcta ejecución del motor PHP 8.4 y la integración FastCGI mediante la función `phpinfo()`.
 
-* **HSTS (Strict-Transport-Security)**: Fuerza el uso de conexiones HTTPS durante 2 años, evitando ataques de degradación de SSL (SSL Stripping).
-* **CSP (Content-Security-Policy)**: Restringe el origen de los recursos para prevenir ataques de inyección de scripts (XSS).
-* **X-Frame-Options**: Configurado como `SAMEORIGIN` para evitar que el sitio sea cargado en iframes externos (protección contra Clickjacking).
-* **X-Content-Type-Options**: Configurado como `nosniff` para evitar que el navegador interprete archivos de forma errónea (MIME-sniffing).
+## 3. Dockerfile
+El despliegue integra el servidor web y el procesador de PHP en un único contenedor, automatizando la creación de credenciales y certificados.
 
-### C. Cifrado y control de acceso
-* **SSL/TLS**: Implementación de cifrado mediante certificados RSA de 2048 bits generados dinámicamente durante la construcción de la imagen.
-* **Autenticación Básica (Auth Basic)**: El directorio `/privado` requiere credenciales gestionadas mediante un archivo `.htpasswd` cifrado.
-
-## ⚙️ Arquitectura del stack (Nginx + PHP-FPM)
-
-Después de identificar problemas de permisos con los sockets Unix en el entorno aislado de Docker (que provocaban errores **502 Bad Gateway**), se decidió migrar la arquitectura a una comunicación **TCP/IP interna**:
-
-* **Nginx** actúa como servidor frontal (Reverse Proxy).
-* **PHP-FPM (v8.4)** escucha en el puerto `127.0.0.1:9000`.
-* Esta configuración elimina la dependencia de archivos de socket físicos, garantizando una disponibilidad del 100% y eliminando conflictos de permisos entre usuarios de sistema (`www-data`).
-
-## 🛠️ Dockerfile
-
-```dockerfile
+```Dockerfile
 FROM nginx:latest
 
 USER root
@@ -70,30 +59,45 @@ COPY www/ /var/www/html/
 RUN chown -R www-data:www-data /var/www/html
 
 EXPOSE 80 443
-CMD ["bash"]
+CMD service php8.4-fpm start && nginx -g "daemon off;"
 ```
-## 🔍 Validación
 
-### Pruebas de funcionamiento
-* **PHP nativo:** [http://localhost:8084/index.php](http://localhost:8084/index.php) -> Debe cargar correctamente la tabla de `phpinfo()`.
-* **Directorio Protegido:** [http://localhost:8084/privado/index.html](http://localhost:8084/privado/index.html)
-    * **Usuario:** `admin`
-    * **Contraseña:** `admin123`
+## 4. Despliegue y uso
 
-![Validación práctica 5](../assets/verificacion_pr5.png)
+### A. Construcción de la imagen
+```bash
+docker build -t victorteleanu/pps:pr5 .
+```
 
-## 🛠️ Troubleshooting
+### B. Subir la imagen a DockerHub
+```bash
+docker push victorteleanu/pps:pr5
+```
 
-Durante el desarrollo se arregló un error **502 Bad Gateway** debido de la incompatibilidad de permisos en los sockets Unix entre el proceso de Nginx y el de PHP 8.4 dentro del entorno de Docker. 
+### C. Despliegue del contenedor
+```bash
+docker run -d --name practica5_test -p 9005:443 victorteleanu/pps:pr5
+```
 
-Para solucionarlo se reconfiguró del pool de PHP para utilizar **sockets TCP (127.0.0.1:9000)**, asegurando una comunicación fluida y un código de respuesta **200 OK** constante.
+## 5. Verificación
 
-## 🌐 Docker Hub
+### **A. Validación de autenticación**
+Al acceder al servidor, el navegador debe solicitar las credenciales configuradas (`admin` / `admin123`).
+* **URL**: `https://localhost:9005`
+* **Resultado esperado**: Bloqueo de acceso hasta el login exitoso.
+* **Evidencia**:
 
-Imagen disponible para su despliegue de forma rápida:
+![Login Auth](../assets/verificacion_pr5.png)
 
-| Campo | Valor |
-| :--- | :--- |
-| **Repositorio** | `victorteleanu/pps` |
-| **Etiqueta (Tag)** | `pr5` |
-| **Comando Pull** | `docker pull victorteleanu/pps:pr5` |
+### **B. Verificación de entorno PHP 8.4**
+Tras la autenticación, se comprueba que el servidor procesa archivos `.php` correctamente.
+* **Resultado esperado**: Visualización de la página de configuración de PHP con Server API: **FPM/FastCGI**.
+* **Evidencia**:
+
+![PHP Info](../assets/verificacion_pr5_1.png)
+
+## 6. DockerHub
+
+La imagen final se encuentra en el siguiente enlace:
+
+**[victorteleanu/pps:pr7](https://hub.docker.com/repository/docker/victorteleanu/pps/tags/pr5)**

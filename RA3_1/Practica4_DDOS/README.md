@@ -1,33 +1,33 @@
-# 🛡️ Práctica 4: Evitar ataques DDOS
+# Práctica 4: Protección Anti-DDoS con mod_evasive
 
-En esta fase hemos blindado el servidor contra ataques de **Denegación de Servicio (DoS)** y fuerza bruta. Utilizando el módulo **mod_evasive**, el servidor ahora actúa como un limitador de tráfico (rate-limiter), bloqueando temporalmente a cualquier IP que supere los umbrales de peticiones permitidos.
+Esta práctica se centra en la disponibilidad del servicio mediante la implementación de **mod_evasive**. El objetivo es detectar y bloquear automáticamente peticiones masivas (ataques DoS/brute force) que superen los umbrales de tráfico definidos.
 
-## 📂 Estructura del directorio
+## 1. Estructura del directorio
+El proyecto integra el módulo evasivo sobre la base de seguridad de OWASP de la práctica anterior.
 
 ```text
-Practica4_Evasive/
-├── Dockerfile                # Herencia de pps:pr3 + mod_evasive
-└── conf/
-    └── evasive.conf          # Configuración de umbrales de bloqueo
+Practica4_DDOS/
+├── conf/                   # Configuraciones de seguridad
+│   └── evasive.conf        # Definición de umbrales y tiempos de bloqueo
+├── Dockerfile              # Construcción basada en pps:pr3
+└── README.md
 ```
-## ⚙️ Configuración realizada
+## 2. Archivos de configuración
 
-### A. Definición de umbrales (evasive.conf)
-Se han establecido los parámetros de detección siguiendo el manual técnico facilitado para garantizar un bloqueo reactivo pero estable:
+### **A. Configuración de mod_evasive (`evasive.conf`)**
+Define el comportamiento del radar de tráfico para identificar abusos:
+* **DOSPageCount 5 / DOSPageInterval 1**: Bloquea a un cliente si pide la misma página más de 5 veces en 1 segundo.
+* **DOSSiteCount 100 / DOSSiteInterval 2**: Bloquea si se piden más de 100 objetos del sitio en 2 segundos.
+* **DOSBlockingPeriod 10**: El atacante es bloqueado por un periodo de 10 segundos cada vez que viola una regla.
+* **DOSLogDir**: Directorio donde se almacenan los registros de IPs bloqueadas.
 
-* **DOSPageCount**: 5 (Límite de peticiones a la misma URI por segundo).
-* **DOSSiteCount**: 100 (Límite de peticiones totales al sitio por segundo).
-* **DOSBlockingPeriod**: 10 (Segundos de baneo tras detectar el abuso).
-* **DOSLogDir**: `/var/log/mod_evasive`.
+### **B. Integración de logs**
+Se ha configurado `/var/log/mod_evasive` con los permisos adecuados para que el proceso de Apache pueda registrar las incidencias de bloqueo en tiempo real.
 
-### B. Gestión de permisos de auditoría
-El módulo requiere permisos de escritura en el sistema de archivos para marcar las IPs en cuarentena y generar los archivos de bloqueo:
+## 3. Dockerfile
+La imagen se construye sobre `pps:pr3`, instalando el binario del módulo y configurando la persistencia de logs antes de habilitar la configuración.
 
-* **Comando**: `chown -R root:www-data /var/log/mod_evasive`
-
-## 🛠️ Dockerfile
-
-```dockerfile
+```Dockerfile
 FROM victorteleanu/pps:pr3
 
 # Instalación del módulo mod_evasive
@@ -46,43 +46,52 @@ RUN a2enmod evasive
 EXPOSE 80 443
 ```
 
-## 🔍 Validación
+## 4. Despliegue y uso
 
-Para verificar la protección contra denegación de servicio, se ha lanzado una ráfaga de 100 peticiones con una concurrencia de 5, simulando un intento de saturación del servidor:
+### A. Construcción de la imagen
+```bash
+docker build -t victorteleanu/pps:pr4 .
+```
+
+### B. Subir la imagen a DockerHub
+```bash
+docker push victorteleanu/pps:pr4
+```
+
+### C. Despliegue del contenedor
+```bash
+docker run -d --name practica4_test -p 9004:80 -p 9446:443 victorteleanu/pps:pr4
+```
+
+## 5. Verificación
+
+Para validar la efectividad de la protección, se realiza una prueba de estrés mediante la herramienta **ApacheBench (ab)** desde dentro del contenedor para simular una carga masiva.
+
+### **Prueba de carga (Stress Test)**
+
+Accedemos al contenedor y ejecutamos una ráfaga de 100 peticiones concurrentes:
+
+- Acceso al contenedor:
+```bash
+docker exec -it practica4_test bash
+# En caso de estar en windows
+winpty docker exec -it practica4_test bash
+```
+
+- Ejecución de ApacheBench
 
 ```bash
-# Prueba de carga desde el interior del contenedor
 ab -n 100 -c 5 http://localhost/index.html
 ```
 
-### Resultados de la prueba
+**Resultado esperado**: Se observará un alto número de Failed requests (código 403 Forbidden enviado por mod_evasive).
 
-| Métrica | Valor Real Obtenido |
-| :--- | :--- |
-| **Peticiones Totales** | 100 |
-| **Peticiones Fallidas** | **94**  |
-| **Tiempo Total** | 0.049 segundos |
-| **Código de Respuesta** | **403 Forbidden** |
+**Evidencia:**
 
-### Verificación por comandos de sistema
+![Verificación práctica 4](../assets/verificacion_pr4.png)
 
-Para confirmar que el bloqueo fue ejecutado específicamente por el módulo **mod_evasive**, se contabilizan las denegaciones registradas en el log de acceso de Apache:
+## 6. DockerHub
 
-```bash
-# Conteo de peticiones bloqueadas con código 403
-grep " 403 " /var/log/apache2/access.log | wc -l
-```
+La imagen final se encuentra en el siguiente enlace:
 
-![Validación práctica 4](../assets/verificacion_pr4.png)
-
-**Resultado**: El comando debería devolver **94**, coincidiendo exactamente con el reporte de fallos generado por **Apache Bench**. En este caso devuelve 190 debido a que se ha lanzado más de una vez.
-
-## 🌐 Docker Hub
-
-Imagen disponible para su despliegue de forma rápida:
-
-| Campo | Valor |
-| :--- | :--- |
-| **Repositorio** | `victorteleanu/pps` |
-| **Etiqueta (Tag)** | `pr4` |
-| **Comando Pull** | `docker pull victorteleanu/pps:pr4` |
+**[victorteleanu/pps:pr4](https://hub.docker.com/repository/docker/victorteleanu/pps/tags/pr4)**

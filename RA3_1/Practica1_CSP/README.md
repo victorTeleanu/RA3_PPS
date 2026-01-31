@@ -1,50 +1,43 @@
-# 🛡️ Práctica 1: CSP
+# Práctica 1: CSP
 
-Esta práctica consiste en la implementación de medidas iniciales de **endurecimiento (hardening)** sobre un servidor web Apache corriendo en un contenedor Docker. El objetivo principal es reducir la superficie de ataque y garantizar la integridad y privacidad de las comunicaciones mediante el uso de cabeceras de seguridad y cifrado SSL/TLS.
+Esta práctica inicial se centra en la reducción de la superficie de ataque del servidor Apache mediante la implementación de cifrado SSL/TLS y la configuración de políticas de seguridad en las cabeceras HTTP.
 
----
-
-## 📂 Estructura del directorio
+## 1. Estructura del directorio
+El proyecto organiza los activos de seguridad (certificados) y las políticas de endurecimiento en directorios separados.
 
 ```text
 Practica1_CSP/
-├── Dockerfile
-├── conf/
-│   ├── default-ssl.conf
-│   └── user-hardening.conf
-└── ssl/
-    ├── apache.crt
-    └── apache.key
+├── conf/                   # Configuraciones de seguridad
+│   ├── default-ssl.conf    # VirtualHost configurado para puerto 443
+│   └── user-hardening.conf # Cabeceras CSP, HSTS y control de índices
+├── ssl/                    # Infraestructura de clave pública (PKI)
+│   ├── apache.crt          # Certificado auto-firmado
+│   └── apache.key          # Clave privada RSA
+├── Dockerfile              # Construcción basada en Debian con Apache2
+└── README.md
 ```
 
-## ⚙️ Configuración realizada
-Para llegar al estado final del servidor, se realizaron las siguientes acciones técnicas:
+## 2. Archivos de configuración
 
-Se desactivó el listado automático de archivos para evitar que atacantes vean la estructura del servidor.
-* **Deshabilitar autoindex**: `a2dismod -f autoindex`.
-* **Habilitar módulos necesarios**: `a2enmod ssl headers rewrite`.
+### **A. VirtualHost SSL (`default-ssl.conf`)**
+Configura el motor SSL y vincula los certificados del servidor:
+* **SSLEngine on**: Activa el cifrado para el host.
+* **SSLCertificateFile**: Ruta al certificado público.
+* **SSLCertificateKeyFile**: Ruta a la clave privada generada.
 
-Se generó un certificado autofirmado utilizando OpenSSL para habilitar el tráfico cifrado:
+### **B. Hardening y CSP (`user-hardening.conf`)**
+Define las políticas de protección para el navegador del cliente:
+* **Strict-Transport-Security (HSTS)**: Fuerza al navegador a usar siempre conexiones HTTPS durante 2 años (`max-age=63072000`).
+* **Content-Security-Policy (CSP)**: Establece `default-src 'self'`, permitiendo carga de recursos únicamente desde el mismo origen del servidor.
+* **Options -Indexes**: Bloquea el listado automático de archivos en directorios sin un `index.html`.
 
-```bash
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
--keyout ssl/apache.key \
--out ssl/apache.crt \
--subj "/C=ES/ST=Valencia/L=Valencia/O=GVA/OU=PPS/CN=localhost"
-```
+### **C. Certificados (SSL)**
+Se ha generado un par de llaves RSA para habilitar el protocolo HTTPS de forma local.
 
-En el archivo `conf/user-hardening.conf` se definieron las políticas de seguridad que se inyectan en cada respuesta HTTP para proteger al cliente:
-* **HSTS**: `Header always set Strict-Transport-Security "max-age=63072000; includeSubDomains"`.
-* **CSP**: `Header always set Content-Security-Policy "default-src 'self';"`.
+## 3. Dockerfile
+El despliegue utiliza una imagen ligera de Debian. Automatiza la habilitación de módulos críticos y aplica el principio de mínimo privilegio eliminando módulos innecesarios como `autoindex`.
 
-Se modificó el archivo `conf/default-ssl.conf` para establecer la identidad del servidor y activar el cifrado de datos:
-* **SSLEngine**: `on`.
-* **SSLCertificateFile**: `/etc/apache2/ssl/apache.crt`.
-* **SSLCertificateKeyFile**: `/etc/apache2/ssl/apache.key`.
-
-## 🛠️ Dockerfile
-
-```dockerfile
+```Dockerfile
 FROM debian:bookworm-slim
 
 # Instalación de paquetes básicos
@@ -81,25 +74,42 @@ EXPOSE 80 443
 CMD ["apache2ctl", "-D", "FOREGROUND"]
 ```
 
-## 🔍 Validación
-La verificación se realiza inspeccionando las cabeceras de seguridad desde el interior del contenedor para asegurar que las políticas se aplican correctamente.
+## 4. Despliegue y uso
 
+### A. Construcción de la imagen
 ```bash
-curl -k -I https://localhost
+docker build -t victorteleanu/pps:pr1 .
 ```
 
-### Resultados obtenidos
+### B. Subir la imagen a DockerHub
+```bash
+docker push victorteleanu/pps:pr1
+```
 
-![Validación práctica 1](../assets/verificacion_pr1.png)
+### C. Despliegue del contenedor
+```bash
+docker run -d --name practica1_test -p 9001:80 -p 9443:443 victorteleanu/pps:pr1
+```
 
-* **HSTS**: `Strict-Transport-Security: max-age=63072000; includeSubDomains`
-* **CSP**: `Content-Security-Policy: default-src 'self';`
+## 5. Verificación
 
-## 🌐 Docker Hub
-Imagen disponible para su despliegue de forma rápida:
+Se utiliza `curl` para inspeccionar las cabeceras de seguridad y validar que el servidor responde correctamente bajo HTTPS.
 
-| Campo | Valor |
-| :--- | :--- |
-| **Repositorio** | `victorteleanu/pps` |
-| **Etiqueta (Tag)** | `pr1` |
-| **Comando Pull** | `docker pull victorteleanu/pps:pr1` |
+### **Verificacioón de cabeceras de seguridad**
+
+```bash
+curl -I -k -s https://localhost:9443
+```
+
+**Resultado esperado**: `Strict-Transport-Security` y `Content-Security-Policy` presentes. `Server` muestra la versión estándar de Debian/Apache.
+
+**Evidencia:**
+
+![Verificación práctica 1](../assets/verificacion_pr1.png)
+
+## 6. DockerHub
+
+La imagen final se encuentra en el siguiente enlace:
+
+**[victorteleanu/pps:pr1](https://hub.docker.com/repository/docker/victorteleanu/pps/tags/pr1)**
+

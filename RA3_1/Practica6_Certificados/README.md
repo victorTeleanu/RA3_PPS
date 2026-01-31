@@ -1,34 +1,35 @@
-# 🛡️ Práctica 6: Certificados
+# Práctica 6: Certificados y Redirecciones de Dominio
 
-En esta fase hemos implementado el cifrado de extremo a extremo mediante el protocolo **SSL/TLS**. El objetivo es garantizar la integridad y confidencialidad de los datos mediante el uso de certificados digitales y la redirección forzosa de todo el tráfico no seguro (HTTP) hacia el canal cifrado (HTTPS).
+Esta práctica se centra en la implementación de una infraestructura de clave pública (PKI) propia y el control de tráfico mediante nombres de dominio (FQDN). El objetivo es asegurar que todo el tráfico sea cifrado y redirigido correctamente hacia el puerto seguro.
 
-## 📂 Estructura del directorio
+## 1. Estructura del directorio
+El proyecto organiza las configuraciones del host virtual y el contenido web estático para la verificación de la conexión segura.
 
 ```text
-Practica6_Apache/
-├── Dockerfile
-├── conf/
-│   └── midominio.conf
-└── www/
-    └── index.html
+Practica6_Certificados/
+├── conf/                   # Configuraciones de servidor
+│   └── victorteleanu.conf  # VirtualHost con ServerName y Redirección
+├── www/                    # Contenido de la aplicación
+│   └── index.html          # Interfaz de verificación SSL
+├── Dockerfile              # Construcción basada en php:8.2-apache
+└── README.md
 ```
-## ⚙️ Configuración realizada
 
-### A. Generación de certificado auto-firmado
-Siguiendo los estándares de criptografía, se ha generado una clave privada y un certificado X.509 utilizando OpenSSL:
-* **Algoritmo**: RSA de 2048 bits.
-* **Validez**: 365 días.
-* **Common Name (CN)**: `www.midominioseguro.com`.
-* **Ruta**: `/etc/apache2/ssl/`.
+## 2. Archivos de configuración
 
-### B. Redirección forzosa y VirtualHosts
-Se ha modificado la lógica del servidor para que no permita tráfico en texto plano:
-* **Puerto 80**: Implementa un `Redirect permanent /` hacia la URL segura.
-* **Puerto 443**: Activa el `SSLEngine` vinculando los archivos `apache.crt` y `apache.key`.
+### **A. VirtualHost Personalizado (`victorteleanu.conf`)**
+Define la lógica de encaminamiento basada en nombres:
+* **ServerName**: Se establece `www.victorteleanu.com` como el nombre de dominio oficial del servidor.
+* **Redirección Permanente (Puerto 80)**: Se fuerza el tráfico HTTP hacia el puerto seguro **9448** mediante un código 301, garantizando que el usuario no navegue por canales inseguros.
+* **Configuración SSL (Puerto 443)**: Vincula los certificados generados y desactiva el uso de archivos `.htaccess` (`AllowOverride None`) para mejorar el rendimiento y la seguridad.
 
-## 🛠️ Dockerfile
+### **B. Contenido Web (`index.html`)**
+Página sencilla de aterrizaje que confirma visualmente al usuario que la conexión SSL se ha establecido con éxito tras aceptar el certificado auto-firmado.
 
-```dockerfile
+## 3. Dockerfile
+El despliegue automatiza la creación de la identidad digital del servidor utilizando OpenSSL.
+
+```Dockerfile
 FROM php:8.2-apache
 
 # Activar el módulo SSL
@@ -39,36 +40,56 @@ RUN mkdir -p /etc/apache2/ssl && \
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
     -keyout /etc/apache2/ssl/apache.key \
     -out /etc/apache2/ssl/apache.crt \
-    -subj "/C=ES/ST=Castellon/L=Castellon/O=Caminas/OU=ServerDev/CN=www.midominioseguro.com"
+    -subj "/C=ES/ST=Castellon/L=Castellon/O=Caminas/OU=ServerDev/CN=www.victorteleanu.com"
 
 # Configurar y activar el host virtual
-COPY conf/midominio.conf /etc/apache2/sites-available/midominio.conf
-RUN a2dissite 000-default.conf && a2ensite midominio.conf
+COPY conf/victorteleanu.conf /etc/apache2/sites-available/victorteleanu.conf
+RUN a2dissite 000-default.conf && a2ensite victorteleanu.conf
 
 # Copiar contenido web
 COPY www/ /var/www/html/
 
 EXPOSE 80 443
 ```
-## 🔍 Validación
 
-Para verificar la correcta implementación, es indispensable configurar el archivo **hosts** del sistema anfitrión para resolver el dominio simulado:
+## 4. Despliegue y uso
 
-* **Ruta**: `C:\Windows\System32\drivers\etc\hosts`
-* **Añadir al final**: `127.0.0.1 www.midominioseguro.com`
+### A. Construcción de la imagen
+```bash
+docker build -t victorteleanu/pps:pr6 .
+```
 
-### Resultados de la prueba de conexión
+### B. Subir la imagen a DockerHub
+```bash
+docker push victorteleanu/pps:pr6
+```
 
-Accedemos a 'http://www.midominioseguro.com' para realizar la validación.
+### C. Despliegue del contenedor
+```bash
+docker run -d --name practica6_test -p 9006:80 -p 9448:443 victorteleanu/pps:pr6
+```
 
-![Validación práctica 6](../assets/verificacion_pr6.png)
+## 5. Verificación
 
-## 🌐 Docker Hub
+Se validan los mecanismos de redirección y la validez del certificado generado.
 
-Imagen disponible para su despliegue de forma rápida:
+### **A. Validación de redirección automática**
+Al intentar acceder por el puerto inseguro, el servidor debe redirigir al navegador al puerto seguro.
+* **URL**: `http://www.victorteleanu.com:9006`
+* **Resultado esperado**: Redirección automática a `https://www.victorteleanu.com:9448`.
 
-| Campo | Valor |
-| :--- | :--- |
-| **Repositorio** | `victorteleanu/pps` |
-| **Etiqueta (Tag)** | `pr6` |
-| **Comando Pull** | `docker pull victorteleanu/pps:pr6` |
+### **B. Verificación de certificado SSL**
+En el propio navegador, acceder a los certificados de la web.
+**Resultado esperado**: Conexión exitosa y visualización de los parámetros del certificado.
+
+**Evidencia:**
+
+![Verificación práctica 6](../assets/verificacion_pr6.png)
+
+## 6. DockerHub
+
+La imagen final se encuentra en el siguiente enlace:
+
+**[victorteleanu/pps:pr6](https://hub.docker.com/repository/docker/victorteleanu/pps/tags/pr6)**
+
+
