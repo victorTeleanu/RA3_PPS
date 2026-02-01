@@ -2,6 +2,8 @@
 
 En esta práctica se eleva el nivel de protección del WAF mediante la implementación del **OWASP ModSecurity Core Rule Set (CRS)**. Este conjunto de reglas genéricas de detección de ataques se utiliza para proteger aplicaciones web de una amplia gama de ataques, incluidos los diez riesgos principales de OWASP (SQLi, XSS, LFI, etc.).
 
+---
+
 ## 1. Estructura del directorio
 El proyecto integra el motor de ModSecurity configurado anteriormente con las reglas oficiales de SpiderLabs.
 
@@ -14,18 +16,22 @@ Practica3_OWASP/
 └── README.md
 ```
 
+---
+
 ## 2. Archivos de configuración
 
-### **A. Regla de Prueba Personalizada (`owasp-testing.conf`)**
+### **A. Regla de prueba personalizada (`owasp-testing.conf`)**
 Se ha implementado una regla específica para verificar el funcionamiento del motor antes de la carga masiva:
 * **SecRule ARGS:testparam "@contains test"**: Intercepta cualquier petición que contenga la cadena "test" en el parámetro `testparam`.
 * **msg:'Cazado por Ciberseguridad'**: Mensaje personalizado que se registra en el log de auditoría al producirse el bloqueo (403).
 
-### **B. Orquestador de Reglas (`security2.conf`)**
+### **B. Orquestador de reglas (`security2.conf`)**
 Este archivo actúa como el punto de entrada para Apache:
 * **SecDataDir**: Define el directorio de persistencia para datos del WAF.
 * **IncludeOptional /etc/modsecurity/*.conf**: Carga la configuración base.
 * **Include /etc/modsecurity/rules/*.conf**: Carga de forma recursiva todas las reglas oficiales de OWASP (SQLi, XSS, inyección de comandos, etc.).
+
+---
 
 ## 3. Dockerfile
 La imagen se construye sobre `pps:pr2`, integrando `git` para descargar las reglas actualizadas y realizando una limpieza posterior para optimizar el tamaño de la imagen final.
@@ -56,6 +62,8 @@ RUN a2enconf owasp-testing
 EXPOSE 80 443
 ```
 
+---
+
 ## 4. Despliegue y uso
 
 ### A. Construcción de la imagen
@@ -72,6 +80,8 @@ docker push victorteleanu/pps:pr3
 ```bash
 docker run -d --name practica3_test -p 9003:80 -p 9445:443 victorteleanu/pps:pr3
 ```
+
+---
 
 ## 5. Verificación
 
@@ -101,6 +111,8 @@ curl -I -k -s "https://localhost:9445/?exec=/../../"
 **Evidencia:**
 
 ![Verificación práctica 3](../assets/verificacion_pr3.png)
+
+---
 
 ## 6. DockerHub
 

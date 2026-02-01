@@ -2,6 +2,8 @@
 
 Esta práctica introduce una capa de seguridad activa mediante el despliegue de **ModSecurity v2**. El objetivo es configurar un cortafuegos de aplicaciones web capaz de inspeccionar el tráfico entrante y mitigar ataques comunes.
 
+---
+
 ## 1. Estructura del directorio
 El proyecto hereda la base de seguridad de la Práctica 1 e incluye la configuración personalizada del WAF.
 
@@ -12,6 +14,8 @@ Practica2_WAF/
 ├── Dockerfile                  # Construcción basada en la imagen pps:pr1
 └── README.md
 ```
+
+---
 
 ## 2. Archivos de configuración
 
@@ -25,6 +29,8 @@ Define el comportamiento del motor de reglas y los límites de procesamiento de 
 
 ### **B. Base de reglas recomendada**
 Se utiliza como base el archivo `modsecurity.conf-recommended` proporcionado por el paquete oficial, el cual se adapta para activar la protección activa.
+
+---
 
 ## 3. Dockerfile
 La imagen se construye partiendo de `victorteleanu/pps:pr1`, garantizando que todas las protecciones previas se mantengan.
@@ -48,6 +54,8 @@ COPY conf/modsecurity_custom.conf /etc/apache2/conf-available/modsecurity_custom
 RUN a2enmod security2 && a2enconf modsecurity_custom
 ```
 
+---
+
 ## 4. Despliegue y uso
 
 ### A. Construcción de la imagen
@@ -65,6 +73,8 @@ docker push victorteleanu/pps:pr2
 docker run -d --name practica2_test -p 9002:80 -p 9444:443 victorteleanu/pps:pr2
 ```
 
+---
+
 ## 5. Verificación
 
 Se realiza una prueba de inyección de parámetros sospechosos (Path Traversal) para validar que el WAF intercepta peticiones maliciosas.
@@ -80,6 +90,8 @@ curl -I -k -s "https://localhost:9444/index.html?exec=/etc/passwd"
 **Evidencia:**
 
 ![Verificación práctica 2](../assets/verificacion_pr2.png)
+
+---
 
 ## 6. DockerHub
 

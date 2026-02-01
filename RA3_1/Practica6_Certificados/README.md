@@ -2,6 +2,8 @@
 
 Esta práctica se centra en la implementación de una infraestructura de clave pública (PKI) propia y el control de tráfico mediante nombres de dominio (FQDN). El objetivo es asegurar que todo el tráfico sea cifrado y redirigido correctamente hacia el puerto seguro.
 
+---
+
 ## 1. Estructura del directorio
 El proyecto organiza las configuraciones del host virtual y el contenido web estático para la verificación de la conexión segura.
 
@@ -15,9 +17,11 @@ Practica6_Certificados/
 └── README.md
 ```
 
+---
+
 ## 2. Archivos de configuración
 
-### **A. VirtualHost Personalizado (`victorteleanu.conf`)**
+### **A. VirtualHost personalizado (`victorteleanu.conf`)**
 Define la lógica de encaminamiento basada en nombres:
 * **ServerName**: Se establece `www.victorteleanu.com` como el nombre de dominio oficial del servidor.
 * **Redirección Permanente (Puerto 80)**: Se fuerza el tráfico HTTP hacia el puerto seguro **9448** mediante un código 301, garantizando que el usuario no navegue por canales inseguros.
@@ -25,6 +29,8 @@ Define la lógica de encaminamiento basada en nombres:
 
 ### **B. Contenido Web (`index.html`)**
 Página sencilla de aterrizaje que confirma visualmente al usuario que la conexión SSL se ha establecido con éxito tras aceptar el certificado auto-firmado.
+
+---
 
 ## 3. Dockerfile
 El despliegue automatiza la creación de la identidad digital del servidor utilizando OpenSSL.
@@ -52,6 +58,8 @@ COPY www/ /var/www/html/
 EXPOSE 80 443
 ```
 
+---
+
 ## 4. Despliegue y uso
 
 ### A. Construcción de la imagen
@@ -69,9 +77,17 @@ docker push victorteleanu/pps:pr6
 docker run -d --name practica6_test -p 9006:80 -p 9448:443 victorteleanu/pps:pr6
 ```
 
+---
+
 ## 5. Verificación
 
 Se validan los mecanismos de redirección y la validez del certificado generado.
+
+> **Configuración del Sistema:** Para realizar las verificaciones de forma correcta, es obligatorio añadir la siguiente línea en el archivo `hosts` de su sistema:
+> ```bash
+> 127.0.0.1 www.victorteleanu.com
+> ```
+
 
 ### **A. Validación de redirección automática**
 Al intentar acceder por el puerto inseguro, el servidor debe redirigir al navegador al puerto seguro.
@@ -85,6 +101,8 @@ En el propio navegador, acceder a los certificados de la web.
 **Evidencia:**
 
 ![Verificación práctica 6](../assets/verificacion_pr6.png)
+
+---
 
 ## 6. DockerHub
 

@@ -2,6 +2,8 @@
 
 Esta práctica representa la culminación del proceso de endurecimiento (*hardening*), donde se implementa una arquitectura modular de seguridad para blindar el servidor frente a técnicas de reconocimiento y abusos de protocolo.
 
+---
+
 ## 1. Estructura del directorio
 La configuración se ha modularizado para separar las políticas de seguridad de la lógica del servidor web.
 
@@ -18,6 +20,8 @@ Practica7_ApacheHardening/
 └── README.md
 ```
 
+---
+
 ## 2. Archivos de configuración
 
 ### **A. Hardening (`hardening.conf`)**
@@ -28,7 +32,7 @@ Se configura la ocultación de la versión de Apache y la mitigación de ataques
 * **TraceEnable Off**: Desactiva el método TRACE para evitar ataques XST.
 * **Timeout 60**: Reduce el tiempo de espera para mitigar ataques como Slowloris.
 
-### **B. WAF & Identidad (`modsecurity.conf`)**
+### **B. WAF (`modsecurity.conf`)**
 * **SecRuleEngine On**: Activa el motor de reglas de ModSecurity.
 * **SecServerSignature**: Cambia la identidad pública del servidor a `"Servidor-Victor-Privado"`.
 * **SecAuditLog**: Configura el registro de auditoría en `/var/log/apache2/modsec_audit.log`.
@@ -43,6 +47,8 @@ Implementación de cabeceras para mitigar ataques en el lado del cliente.
 ### **D. VirtualHost (`victorteleanu.conf`)**
 * **Redirección**: Fuerza todo el tráfico HTTP (puerto 80) hacia el puerto HTTPS seguro (9449).
 * **LimitExcept**: Restricción estricta de métodos HTTP, permitiendo únicamente `GET`, `POST` y `HEAD`.
+
+---
 
 ## 3. Dockerfile
 El Dockerfile automatiza la instalación de `libapache2-mod-security2`, la generación de certificados RSA de 2048 bits y la aplicación de permisos restrictivos (`chmod 750`) sobre las rutas críticas.
@@ -87,6 +93,8 @@ RUN chown -R www-data:www-data /var/www/html
 EXPOSE 80 443
 ```
 
+---
+
 ## 4. Despliegue y uso
 
 ### A. Construcción de la imagen
@@ -104,9 +112,16 @@ docker push victorteleanu/pps:pr7
 docker run -d --name practica7_test -p 9007:80 -p 9449:443 victorteleanu/pps:pr7
 ```
 
+---
+
 ## 5. Verificación
 
-A continuación se detallan los comandos utilizados para realizar la verificación:
+A continuación se detallan los comandos utilizados para realizar la verificación.
+
+> **Configuración del Sistema:** Para realizar las verificaciones de forma correcta, es obligatorio añadir la siguiente línea en el archivo `hosts` de su sistema:
+> ```bash
+> 127.0.0.1 www.victorteleanu.com
+> ```
 
 ### **A. Verificación de identidad y cabeceras**
 
@@ -145,6 +160,8 @@ curl -I -s http://www.victorteleanu.com:9007
 **Resultado esperado**: Respuesta `HTTP/1.1 301 Moved Permanently` con la cabecera `Location` hacia el puerto 9449.
 
 **Evidencia:**
+
+---
 
 ![Verificación práctica 7](../assets/verificacion_pr7.png)
 

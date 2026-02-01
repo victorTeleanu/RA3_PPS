@@ -2,6 +2,8 @@
 
 Esta práctica se centra en la disponibilidad del servicio mediante la implementación de **mod_evasive**. El objetivo es detectar y bloquear automáticamente peticiones masivas (ataques DoS/brute force) que superen los umbrales de tráfico definidos.
 
+---
+
 ## 1. Estructura del directorio
 El proyecto integra el módulo evasivo sobre la base de seguridad de OWASP de la práctica anterior.
 
@@ -12,6 +14,9 @@ Practica4_DDOS/
 ├── Dockerfile              # Construcción basada en pps:pr3
 └── README.md
 ```
+
+---
+
 ## 2. Archivos de configuración
 
 ### **A. Configuración de mod_evasive (`evasive.conf`)**
@@ -23,6 +28,8 @@ Define el comportamiento del radar de tráfico para identificar abusos:
 
 ### **B. Integración de logs**
 Se ha configurado `/var/log/mod_evasive` con los permisos adecuados para que el proceso de Apache pueda registrar las incidencias de bloqueo en tiempo real.
+
+---
 
 ## 3. Dockerfile
 La imagen se construye sobre `pps:pr3`, instalando el binario del módulo y configurando la persistencia de logs antes de habilitar la configuración.
@@ -46,6 +53,8 @@ RUN a2enmod evasive
 EXPOSE 80 443
 ```
 
+---
+
 ## 4. Despliegue y uso
 
 ### A. Construcción de la imagen
@@ -62,6 +71,8 @@ docker push victorteleanu/pps:pr4
 ```bash
 docker run -d --name practica4_test -p 9004:80 -p 9446:443 victorteleanu/pps:pr4
 ```
+
+---
 
 ## 5. Verificación
 
@@ -89,6 +100,8 @@ ab -n 100 -c 5 http://localhost/index.html
 **Evidencia:**
 
 ![Verificación práctica 4](../assets/verificacion_pr4.png)
+
+---
 
 ## 6. DockerHub
 

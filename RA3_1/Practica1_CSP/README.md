@@ -2,6 +2,8 @@
 
 Esta práctica inicial se centra en la reducción de la superficie de ataque del servidor Apache mediante la implementación de cifrado SSL/TLS y la configuración de políticas de seguridad en las cabeceras HTTP.
 
+---
+
 ## 1. Estructura del directorio
 El proyecto organiza los activos de seguridad (certificados) y las políticas de endurecimiento en directorios separados.
 
@@ -16,6 +18,8 @@ Practica1_CSP/
 ├── Dockerfile              # Construcción basada en Debian con Apache2
 └── README.md
 ```
+
+---
 
 ## 2. Archivos de configuración
 
@@ -33,6 +37,8 @@ Define las políticas de protección para el navegador del cliente:
 
 ### **C. Certificados (SSL)**
 Se ha generado un par de llaves RSA para habilitar el protocolo HTTPS de forma local.
+
+---
 
 ## 3. Dockerfile
 El despliegue utiliza una imagen ligera de Debian. Automatiza la habilitación de módulos críticos y aplica el principio de mínimo privilegio eliminando módulos innecesarios como `autoindex`.
@@ -74,6 +80,8 @@ EXPOSE 80 443
 CMD ["apache2ctl", "-D", "FOREGROUND"]
 ```
 
+---
+
 ## 4. Despliegue y uso
 
 ### A. Construcción de la imagen
@@ -91,6 +99,8 @@ docker push victorteleanu/pps:pr1
 docker run -d --name practica1_test -p 9001:80 -p 9443:443 victorteleanu/pps:pr1
 ```
 
+---
+
 ## 5. Verificación
 
 Se utiliza `curl` para inspeccionar las cabeceras de seguridad y validar que el servidor responde correctamente bajo HTTPS.
@@ -106,6 +116,8 @@ curl -I -k -s https://localhost:9443
 **Evidencia:**
 
 ![Verificación práctica 1](../assets/verificacion_pr1.png)
+
+---
 
 ## 6. DockerHub
 
