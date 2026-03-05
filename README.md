@@ -8,6 +8,7 @@ Este repositorio contiene todas las configuraciones, validaciones y despliegues 
 El contenido está organizado por actividades específicas:
 
 * **[RA3_1:](./RA3_1)** Server Hardening.
+* **[RA3_2:](./RA3_2)** DVWA Writeups.
 
 **Autor:** Víctor Teleanu  
 **Módulo:** Puesta en producción segura
