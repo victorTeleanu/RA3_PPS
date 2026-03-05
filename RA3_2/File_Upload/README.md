@@ -49,4 +49,4 @@ Con nuestro archivo malicioso subido correctamente, solo nos queda ejecutarlo:
 
 Al ejecutar el comando `whoami`, comprobamos que hemos obtenido acceso al servidor como el usuario `www-data`, completando el ataque de subida de archivos con éxito.
 
-![Ejecución de la reverse shell y acceso exitoso por consola](../assets/File_Upload/2.png)
+![Ejecución de la reverse shell y acceso exitoso por consola](../assets/File_Upload/3.png)
